@@ -15,6 +15,15 @@ models = {
         'message': fields.String,
         'status': fields.Integer,
         'data': DictField
+    },
+    'collaborator': {
+        'note_id': fields.Integer,
+        'access_type': fields.String('read_only'),
+        'collaborators': fields.List(fields.Integer)
+    },
+    'delete_collaborator': {
+        'note_id': fields.Integer,
+        'collaborators': fields.List(fields.Integer)
     }
 }
 

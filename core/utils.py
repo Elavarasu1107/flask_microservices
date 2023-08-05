@@ -22,6 +22,7 @@ def exception_handler(function):
             return {'message': str(ex), 'status': 401, 'data': {}}, 401
         except Exception as ex:
             return {'message': str(ex), 'status': 400, 'data': {}}, 400
+    wrapper.__name__ = function.__name__
     return wrapper
 
 # def exception_handler(cls):

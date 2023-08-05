@@ -1,11 +1,12 @@
 from core import create_app, db
 from flask import request
 from settings import settings
-from notes.models import Notes
+from notes.models import Notes, Collaborator
 from flask_restx import Resource, Api
 import requests as http
 from core.utils import exception_handler
 from notes.swagger_schema import get_model
+from notes import utils
 
 app = create_app(settings.config_mode)
 
@@ -30,12 +31,12 @@ def verify_token(function):
         if request.method not in ['GET', 'DELETE']:
             request.json['user_id'] = res.json()['id']
         else:
-            kwargs.update({'user': res.json()['id']})
+            kwargs.update({'user_id': res.json()['id']})
         return function(*args, **kwargs)
     return wrapper
 
 
-@api.route('/notes/')
+@api.route('/notes')
 class NotesRest(Resource):
     @api.doc(body=api_model('note_schema'))
     @api.marshal_with(fields=api_model('response'), code=201)
@@ -52,7 +53,10 @@ class NotesRest(Resource):
     @exception_handler
     @verify_token
     def get(self, *args, **kwargs):
-        notes = list(map(lambda x: x.to_dict(), Notes.query.filter_by(user_id=kwargs.get('user'))))
+        notes = list(map(lambda x: x.to_dict(), Notes.query.filter_by(user_id=kwargs.get('user_id'))))
+        collab_notes = list(map(lambda x: Notes.query.get(x.note_id).to_dict(),
+                                Collaborator.query.filter_by(user_id=kwargs.get('user_id'))))
+        notes.extend(collab_notes)
         return {'message': 'Notes Retrieved', 'status': 200, 'data': notes}, 200
 
     @api.doc(body=api_model('note_update'))
@@ -70,7 +74,53 @@ class NotesRest(Resource):
     @exception_handler
     @verify_token
     def delete(self, *args, **kwargs):
-        note = Notes.query.filter_by(id=request.args.to_dict().get('note_id'), user_id=kwargs.get('user')).first()
+        note = Notes.query.filter_by(id=request.args.to_dict().get('note_id'), user_id=kwargs.get('user_id')).first()
         db.session.delete(note)
         db.session.commit()
         return {'message': 'Note deleted', 'status': 200, 'data': {}}, 200
+
+
+@api.route('/notes/collaborator')
+class CollaboratorRest(Resource):
+
+    @api.doc(body=api_model('collaborator'))
+    @api.marshal_with(fields=api_model('response'), code=201)
+    @exception_handler
+    @verify_token
+    def post(self, *args, **kwargs):
+        note = Notes.query.filter_by(id=request.json.get('note_id'), user_id=request.json.get('user_id')).first()
+        if not note:
+            raise Exception('Note not found')
+        collab_obj = []
+        for user in request.json.get('collaborators'):
+            user_data = utils.fetch_user(user)
+            if not user_data:
+                raise Exception(f'User {user} not found')
+            if Collaborator.query.filter_by(note_id=note.id, user_id=user_data['id']).first():
+                raise Exception(f'Note {note.id} already shared with user {user}')
+            collab_obj.append(Collaborator(note_id=note.id, user_id=user_data['id'],
+                                           access_type=request.json.get('access_type')))
+        db.session.add_all(collab_obj)
+        db.session.commit()
+        return {'message': 'Collaborator added', 'status': 200, 'data': {}}
+
+    @api.doc(body=api_model('delete_collaborator'))
+    @api.marshal_with(fields=api_model('response'), code=201)
+    @exception_handler
+    @verify_token
+    def delete(self, *args, **kwargs):
+        note = Notes.query.filter_by(id=request.json.get('note_id'), user_id=kwargs.get('user_id')).first()
+        if not note:
+            raise Exception('Note not found')
+        collab_obj = []
+        for user in request.json.get('collaborators'):
+            user_data = utils.fetch_user(user)
+            if not user_data:
+                raise Exception(f'User {user} not found')
+            collaborated_user = Collaborator.query.filter_by(note_id=note.id, user_id=user_data['id']).first()
+            if not collaborated_user:
+                raise Exception(f'Note {note.id} is not collaborated with user {user}')
+            collab_obj.append(collaborated_user)
+        [db.session.delete(x) for x in collab_obj]
+        db.session.commit()
+        return {'message': 'Collaborator deleted', 'status': 200, 'data': {}}

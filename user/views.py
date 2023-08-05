@@ -76,3 +76,10 @@ def authenticate_user():
         raise Unauthorized(description='Token not found')
     user = auth.api_key_authenticate(token, auth.Audience.login.value)
     return user
+
+
+@app.get('/retrieve/')
+@exception_handler
+def abc():
+    user = User.query.filter_by(id=request.args.get('user_id')).first()
+    return {'message': 'User retrieved', 'status': 200, 'data': user.to_dict()}
