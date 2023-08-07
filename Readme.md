@@ -10,8 +10,9 @@ DB migration commands
 3. flask --app app:<app-instance> db upgrade
 
 Celery command
-1. celery -A tasks.celery -l info --pool=solo
+1. celery -A tasks.celery worker -l info --pool=solo
 
 App server commands
 1. make run_user
 2. make run_note
+3. make run_label

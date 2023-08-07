@@ -1,9 +1,9 @@
 from core import create_app, db
 from flask import request
 from settings import settings
-from notes.models import Notes, Collaborator
+from notes.models import Notes, Collaborator, NoteLabel
 from flask_restx import Resource, Api
-import requests as http
+from core.middlewares import verify_token
 from core.utils import exception_handler
 from notes.swagger_schema import get_model
 from notes import utils
@@ -15,25 +15,10 @@ api = Api(app=app,
           title='Notes',
           default_label='API',
           security='Bearer',
+          doc='/docs',
           authorizations={"Bearer": {"type": "apiKey", "in": "header", "name": "token"}})
 
 api_model = lambda x: api.model(x, get_model(x))
-
-
-def verify_token(function):
-    def wrapper(*args, **kwargs):
-        if not request.headers.get('token'):
-            return {'message': 'Jwt required', 'status': 401, 'data': {}}, 401
-        res = http.post(f'{settings.base_url}:{settings.user_port}/authenticate/',
-                        headers={'token': request.headers.get('token')})
-        if res.status_code >= 400:
-            return {'message': res.json()['message'], 'status': res.status_code, 'data': {}}, res.status_code
-        if request.method not in ['GET', 'DELETE']:
-            request.json['user_id'] = res.json()['id']
-        else:
-            kwargs.update({'user_id': res.json()['id']})
-        return function(*args, **kwargs)
-    return wrapper
 
 
 @api.route('/notes')
@@ -124,3 +109,35 @@ class CollaboratorRest(Resource):
         [db.session.delete(x) for x in collab_obj]
         db.session.commit()
         return {'message': 'Collaborator deleted', 'status': 200, 'data': {}}
+
+
+@api.route('/labelm2m')
+class LabelAssociate(Resource):
+
+    @api.doc(body=api_model('label_m2m'))
+    @api.marshal_with(fields=api_model('response'), code=201)
+    @exception_handler
+    @verify_token
+    def post(self, *args, **kwargs):
+        note = Notes.query.filter_by(id=request.json.get('note_id'), user_id=request.json.get('user_id')).first()
+        if not note:
+            raise Exception('Note not found')
+        label_data = utils.fetch_label(request.json.get('labels'))
+        objs = [NoteLabel(note_id=note.id, label_id=i.get('id')) for i in label_data]
+        db.session.add_all(objs)
+        db.session.commit()
+        return {'message': 'Label added to note', 'status': 200, 'data': {}}
+
+    @api.doc(body=api_model('label_m2m'))
+    @api.marshal_with(fields=api_model('response'), code=201)
+    @exception_handler
+    @verify_token
+    def delete(self, *args, **kwargs):
+        note = Notes.query.filter_by(id=request.json.get('note_id'), user_id=kwargs.get('user_id')).first()
+        if not note:
+            raise Exception('Note not found')
+        NoteLabel.query.filter(NoteLabel.note_id == note.id,
+                               NoteLabel.label_id.in_(request.json.get('labels'))
+                               ).delete()
+        db.session.commit()
+        return {'message': 'Label removed from note', 'status': 200, 'data': {}}

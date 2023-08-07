@@ -27,3 +27,10 @@ class Collaborator(db.Model):
     user_id = db.Column(db.BigInteger, nullable=False)
     note_id = db.Column(db.BigInteger, nullable=False)
     access_type = db.Column(ChoiceType(access), nullable=False)
+
+
+class NoteLabel(db.Model):
+
+    id = db.Column(db.BigInteger, primary_key=True, index=True)
+    note_id = db.Column(db.BigInteger, nullable=False)
+    label_id = db.Column(db.BigInteger, nullable=False)

@@ -24,7 +24,11 @@ models = {
     'delete_collaborator': {
         'note_id': fields.Integer,
         'collaborators': fields.List(fields.Integer)
-    }
+    },
+    'label_m2m': {
+        'note_id': fields.Integer,
+        'labels': fields.List(fields.Integer)
+    },
 }
 
 

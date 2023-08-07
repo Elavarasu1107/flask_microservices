@@ -14,6 +14,7 @@ api = Api(app,
           title='User',
           ordered=True,
           default='User',
+          doc='/docs',
           default_label='API')
 
 api_model = lambda x: api.model(x, swagger_schemas.get_model(x))

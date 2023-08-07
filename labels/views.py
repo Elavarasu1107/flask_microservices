@@ -2,7 +2,7 @@ from core import create_app, db
 from flask import request
 from settings import settings
 from flask_restx import Resource, Api
-import requests as http
+from core.middlewares import verify_token
 from labels.models import Label
 from core.utils import exception_handler
 from labels.swagger_schema import get_model
@@ -14,25 +14,10 @@ api = Api(app=app,
           title='Label',
           default_label='API',
           security='Bearer',
+          doc='/docs',
           authorizations={"Bearer": {"type": "apiKey", "in": "header", "name": "token"}})
 
 api_model = lambda x: api.model(x, get_model(x))
-
-
-def verify_token(function):
-    def wrapper(*args, **kwargs):
-        if not request.headers.get('token'):
-            return {'message': 'Jwt required', 'status': 401, 'data': {}}, 401
-        res = http.post(f'{settings.base_url}:{settings.user_port}/authenticate/',
-                        headers={'token': request.headers.get('token')})
-        if res.status_code >= 400:
-            return {'message': res.json()['message'], 'status': res.status_code, 'data': {}}, res.status_code
-        if request.method not in ['GET', 'DELETE']:
-            request.json['user_id'] = res.json()['id']
-        else:
-            kwargs.update({'user_id': res.json()['id']})
-        return function(*args, **kwargs)
-    return wrapper
 
 
 @api.route('/label')
@@ -42,10 +27,10 @@ class LabelRest(Resource):
     @exception_handler
     @verify_token
     def post(self, *args, **kwargs):
-        note = Label(**request.json)
-        db.session.add(note)
+        label = Label(**request.json)
+        db.session.add(label)
         db.session.commit()
-        label = Label.query.get(note.id)
+        label = Label.query.get(label.id)
         return {'message': 'Label created', 'status': 201, 'data': label.to_dict()}, 201
 
     @api.marshal_with(fields=api_model('response'), code=201)
@@ -60,12 +45,12 @@ class LabelRest(Resource):
     @exception_handler
     @verify_token
     def put(self, *args, **kwargs):
-        note = Label.query.filter_by(id=request.json.get('id'), user_id=request.json.get('user_id')).first()
-        [setattr(note, x, y) for x, y in request.json.items()]
+        label = Label.query.filter_by(id=request.json.get('id'), user_id=request.json.get('user_id')).first()
+        [setattr(label, x, y) for x, y in request.json.items()]
         db.session.commit()
-        return {'message': 'Label updated', 'status': 200, 'data': note.to_dict()}, 200
+        return {'message': 'Label updated', 'status': 200, 'data': label.to_dict()}, 200
 
-    @api.doc(params={'label_id': {'description': 'Provide note id to delete the note', 'required': True}})
+    @api.doc(params={'label_id': {'description': 'Provide label id to delete the label', 'required': True}})
     @api.marshal_with(fields=api_model('response'), code=201)
     @exception_handler
     @verify_token
@@ -74,3 +59,15 @@ class LabelRest(Resource):
         db.session.delete(label)
         db.session.commit()
         return {'message': 'Label deleted', 'status': 200, 'data': {}}, 200
+
+
+@app.post('/retrieve/')
+@exception_handler
+def retrieve_label():
+    objs = []
+    for label in request.json.get('label_id'):
+        obj = Label.query.filter_by(id=label).first()
+        if not obj:
+            return {'message': f'Label {label} not found', 'status': 400, 'data': {}}, 400
+        objs.append(obj.to_dict())
+    return {'message': 'Label fetched successfully', 'status': 200, 'data': objs}

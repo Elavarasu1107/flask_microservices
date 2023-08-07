@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     jwt_key: str
     base_url: str
     user_port: int
+    note_port: int
+    label_port: int
     celery_broker: str
     celery_result: str
     admin_key: str

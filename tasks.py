@@ -4,7 +4,9 @@ from email.message import EmailMessage
 from celery import Celery
 from settings import settings
 from notes.models import Notes
-from notes.views import app
+from labels.models import Label
+from notes.views import app as notes
+from labels.views import app as labels
 from core import db
 
 celery = Celery(__name__,
@@ -30,7 +32,9 @@ def send_mail(payload):
 
 @celery.task()
 def user_on_delete(user_id: int):
-    app.app_context().push()
+    notes.app_context().push()
+    labels.app_context().push()
     Notes.query.filter_by(user_id=user_id).delete()
+    Label.query.filter_by(user_id=user_id).delete()
     db.session.commit()
-    return f'Notes related to user {user_id} has been deleted.'
+    return f'Data related to user {user_id} has been deleted.'
