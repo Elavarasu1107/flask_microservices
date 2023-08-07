@@ -42,6 +42,7 @@ class NotesRest(Resource):
         collab_notes = list(map(lambda x: Notes.query.get(x.note_id).to_dict(),
                                 Collaborator.query.filter_by(user_id=kwargs.get('user_id'))))
         notes.extend(collab_notes)
+        notes.sort(key=lambda x: x.get('id'))
         return {'message': 'Notes Retrieved', 'status': 200, 'data': notes}, 200
 
     @api.doc(body=api_model('note_update'))
@@ -49,8 +50,10 @@ class NotesRest(Resource):
     @exception_handler
     @verify_token
     def put(self, *args, **kwargs):
-        note = Notes.query.filter_by(id=request.json.get('id'), user_id=request.json.get('user_id')).first()
-        [setattr(note, x, y) for x, y in request.json.items()]
+        note = utils.check_note_accessibility(request.json.get('id'), request.json.get('user_id'))
+        if not note:
+            raise Exception('Access denied or note not found')
+        [setattr(note, x, y) for x, y in request.json.items() if x != 'user_id']
         db.session.commit()
         return {'message': 'Note updated', 'status': 200, 'data': note.to_dict()}, 200
 
@@ -78,6 +81,8 @@ class CollaboratorRest(Resource):
             raise Exception('Note not found')
         collab_obj = []
         for user in request.json.get('collaborators'):
+            if user == request.json.get('user_id'):
+                raise Exception('Trying to collaborate not with yourself')
             user_data = utils.fetch_user(user)
             if not user_data:
                 raise Exception(f'User {user} not found')

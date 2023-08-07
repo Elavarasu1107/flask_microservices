@@ -1,5 +1,6 @@
 import json
 
+from notes.models import Notes, Collaborator
 from settings import settings
 import requests
 
@@ -19,3 +20,15 @@ def fetch_label(label_id: list):
         data = json.loads(res.content)
         raise Exception(data.get('message'))
     return res.json().get('data')
+
+
+def check_note_accessibility(note_id, user_id):
+    note = Notes.query.filter_by(id=note_id, user_id=user_id).first()
+    if note:
+        return note
+    collaborator = Collaborator.query.filter_by(note_id=note_id, user_id=user_id, access_type='writable').first()
+    if collaborator:
+        note = Notes.query.filter_by(id=note_id).first()
+        if note:
+            return note
+    return None
