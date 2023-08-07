@@ -1,3 +1,4 @@
+from passlib.handlers.pbkdf2 import pbkdf2_sha256
 from sqlalchemy import inspect
 from flask_validator import ValidateEmail, ValidateString
 from sqlalchemy.orm import validates
@@ -15,6 +16,16 @@ class User(db.Model):
     location = db.Column(db.String(150))
     is_superuser = db.Column(db.Boolean, default=False)
     is_verified = db.Column(db.Boolean, default=False)
+
+    def __init__(self, password, **kwargs):
+        self.password = self.set_password(password)
+        self.__dict__.update(kwargs)
+
+    def set_password(self, raw_password):
+        return pbkdf2_sha256.hash(raw_password)
+
+    def check_password(self, raw_password):
+        return pbkdf2_sha256.verify(raw_password, self.password)
 
     @classmethod
     def __declare_last__(cls):

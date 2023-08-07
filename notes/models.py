@@ -7,6 +7,7 @@ class Notes(db.Model):
     id = db.Column(db.BigInteger, primary_key=True, index=True)
     title = db.Column(db.String(150))
     description = db.Column(db.String(150))
+    reminder = db.Column(db.DateTime, nullable=True)
     user_id = db.Column(db.BigInteger, nullable=False)
 
     def to_dict(self):

@@ -7,7 +7,7 @@ from settings import settings
 from flask_restx import Api, Resource
 from user import swagger_schemas
 from core.utils import exception_handler
-from tasks import send_mail
+from tasks import send_mail, user_on_delete
 
 app = create_app(settings.config_mode)
 api = Api(app,
@@ -19,13 +19,12 @@ api = Api(app,
 api_model = lambda x: api.model(x, swagger_schemas.get_model(x))
 
 
-@api.route('/signup/')
+@api.route('/user/')
 class RegisterUser(Resource):
     @api.doc(body=api_model('register_schema'))
     @api.marshal_with(fields=api_model('response'), code=201)
     @exception_handler
     def post(self):
-        request.json['password'] = auth.set_password(request.json['password'])
         user = User(**request.json)
         db.session.add(user)
         db.session.commit()
@@ -34,6 +33,24 @@ class RegisterUser(Resource):
                   f'token={auth.access_token({"user": user.id}, aud=auth.Audience.register.value)}'
         send_mail.delay(payload={'recipient': user.email, 'message': message})
         return {'message': 'User Registered', 'status': 201, 'data': user.to_dict()}, 201
+
+    @api.marshal_with(fields=api_model('response'), code=201)
+    @exception_handler
+    def get(self):
+        users = [i.to_dict() for i in User.query.all()]
+        return {'message': 'User Retrieved', 'status': 200, 'data': users}, 200
+
+    @api.doc(body=api_model('login_schema'))
+    @api.marshal_with(fields=api_model('response'), code=201)
+    @exception_handler
+    def delete(self):
+        user = User.query.filter_by(username=request.json.get('username')).first()
+        if not user or not user.check_password(request.json.get('password')):
+            raise Exception('Invalid user')
+        db.session.delete(user)
+        db.session.commit()
+        user_on_delete.delay(user.id)
+        return {'message': 'User deleted', 'status': 200, 'data': {}}, 200
 
 
 @api.route('/login/')
@@ -80,6 +97,6 @@ def authenticate_user():
 
 @app.get('/retrieve/')
 @exception_handler
-def abc():
+def retrieve_user():
     user = User.query.filter_by(id=request.args.get('user_id')).first()
     return {'message': 'User retrieved', 'status': 200, 'data': user.to_dict()}

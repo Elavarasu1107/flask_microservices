@@ -3,19 +3,10 @@ from user.models import User
 import jwt
 from typing import List
 import enum
-from passlib.hash import pbkdf2_sha256
 from settings import settings
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
-
-
-def set_password(raw_password):
-    return pbkdf2_sha256.hash(raw_password)
-
-
-def check_password(user, raw_password):
-    return pbkdf2_sha256.verify(raw_password, user.password)
 
 
 class Audience(enum.Enum):
@@ -47,7 +38,7 @@ def decode_token(token: str, aud: List[str] = Audience.default.value):
 
 def authenticate(data):
     user = User.query.filter_by(username=data['username']).first()
-    if user and check_password(user, data['password']):
+    if user and user.check_password(data['password']) and user.is_verified:
         return user
     return None
 
