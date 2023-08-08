@@ -1,6 +1,6 @@
 from pydantic import PostgresDsn, EmailStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import logging
+from logging.config import dictConfig
 
 
 class Settings(BaseSettings):
@@ -24,7 +24,33 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# logging.basicConfig(filename='fundoo.log', encoding='utf-8', level=logging.WARNING,
-#                     format='%(asctime)s:%(filename)s:%(levelname)s:%(lineno)d:%(message)s',
-#                     datefmt='%m/%d/%Y %I:%M:%S %p')
-# logger = logging.getLogger()
+
+dictConfig({
+    "version": 1,
+    "formatters": {
+        "default": {
+            "format": "[%(asctime)s]: %(filename)s: %(levelname)s: %(lineno)d: %(message)s",
+            'datefmt': '%m/%d/%Y %I:%M:%S %p'
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "default",
+        },
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": "fundoo.log",
+            "formatter": "default",
+        }
+    },
+    "root": {"level": "INFO", "handlers": ["console"]},
+    "loggers": {
+        "file_logger": {
+            "level": "WARNING",
+            "handlers": ['file'],
+            "propagate": False
+        }
+    }
+})
