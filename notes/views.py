@@ -23,10 +23,11 @@ api_model = lambda x: api.model(x, get_model(x))
 
 @api.route('/notes')
 class NotesRest(Resource):
+
+    method_decorators = (exception_handler, verify_token)
+
     @api.doc(body=api_model('note_schema'))
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
-    @verify_token
     def post(self, *args, **kwargs):
         note = Notes(**request.json)
         db.session.add(note)
@@ -35,8 +36,6 @@ class NotesRest(Resource):
         return {'message': 'Note created', 'status': 201, 'data': note.to_dict()}, 201
 
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
-    @verify_token
     def get(self, *args, **kwargs):
         notes = list(map(lambda x: x.to_dict(), Notes.query.filter_by(user_id=kwargs.get('user_id'))))
         collab_notes = list(map(lambda x: Notes.query.get(x.note_id).to_dict(),
@@ -47,8 +46,6 @@ class NotesRest(Resource):
 
     @api.doc(body=api_model('note_update'))
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
-    @verify_token
     def put(self, *args, **kwargs):
         note = utils.check_note_accessibility(request.json.get('id'), request.json.get('user_id'))
         if not note:
@@ -59,8 +56,6 @@ class NotesRest(Resource):
 
     @api.doc(params={'note_id': {'description': 'Provide note id to delete the note', 'required': True}})
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
-    @verify_token
     def delete(self, *args, **kwargs):
         note = Notes.query.filter_by(id=request.args.to_dict().get('note_id'), user_id=kwargs.get('user_id')).first()
         db.session.delete(note)
@@ -71,10 +66,10 @@ class NotesRest(Resource):
 @api.route('/notes/collaborator')
 class CollaboratorRest(Resource):
 
+    method_decorators = (exception_handler, verify_token)
+
     @api.doc(body=api_model('collaborator'))
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
-    @verify_token
     def post(self, *args, **kwargs):
         note = Notes.query.filter_by(id=request.json.get('note_id'), user_id=request.json.get('user_id')).first()
         if not note:
@@ -96,8 +91,6 @@ class CollaboratorRest(Resource):
 
     @api.doc(body=api_model('delete_collaborator'))
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
-    @verify_token
     def delete(self, *args, **kwargs):
         note = Notes.query.filter_by(id=request.json.get('note_id'), user_id=kwargs.get('user_id')).first()
         if not note:
@@ -119,10 +112,10 @@ class CollaboratorRest(Resource):
 @api.route('/labelm2m')
 class LabelAssociate(Resource):
 
+    method_decorators = (exception_handler, verify_token)
+
     @api.doc(body=api_model('label_m2m'))
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
-    @verify_token
     def post(self, *args, **kwargs):
         note = Notes.query.filter_by(id=request.json.get('note_id'), user_id=request.json.get('user_id')).first()
         if not note:
@@ -135,8 +128,6 @@ class LabelAssociate(Resource):
 
     @api.doc(body=api_model('label_m2m'))
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
-    @verify_token
     def delete(self, *args, **kwargs):
         note = Notes.query.filter_by(id=request.json.get('note_id'), user_id=kwargs.get('user_id')).first()
         if not note:

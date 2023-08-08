@@ -22,9 +22,11 @@ api_model = lambda x: api.model(x, swagger_schemas.get_model(x))
 
 @api.route('/user/')
 class RegisterUser(Resource):
+
+    method_decorators = (exception_handler,)
+
     @api.doc(body=api_model('register_schema'))
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
     def post(self):
         user = User(**request.json)
         db.session.add(user)
@@ -36,14 +38,12 @@ class RegisterUser(Resource):
         return {'message': 'User Registered', 'status': 201, 'data': user.to_dict()}, 201
 
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
     def get(self):
         users = [i.to_dict() for i in User.query.all()]
         return {'message': 'User Retrieved', 'status': 200, 'data': users}, 200
 
     @api.doc(body=api_model('login_schema'))
     @api.marshal_with(fields=api_model('response'), code=201)
-    @exception_handler
     def delete(self):
         user = User.query.filter_by(username=request.json.get('username')).first()
         if not user or not user.check_password(request.json.get('password')):
