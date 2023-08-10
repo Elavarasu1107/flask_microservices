@@ -8,6 +8,7 @@ from flask_restx import Api, Resource
 from user import swagger_schemas
 from core.utils import exception_handler
 from tasks import send_mail, user_on_delete
+from user import serializers
 
 app = create_app(settings.config_mode)
 api = Api(app,
@@ -25,10 +26,11 @@ class RegisterUser(Resource):
 
     method_decorators = (exception_handler,)
 
-    @api.doc(body=api_model('register_schema'))
+    @api.doc(expect=[api_model('register_schema')])
     @api.marshal_with(fields=api_model('response'), code=201)
     def post(self):
-        user = User(**request.json)
+        serializer = serializers.RegisterSchema(**request.json).model_dump()
+        user = User(**serializer)
         db.session.add(user)
         db.session.commit()
         user = User.query.get(user.id)
@@ -42,11 +44,12 @@ class RegisterUser(Resource):
         users = [i.to_dict() for i in User.query.all()]
         return {'message': 'User Retrieved', 'status': 200, 'data': users}, 200
 
-    @api.doc(body=api_model('login_schema'))
+    @api.doc(expect=[api_model('login_schema')])
     @api.marshal_with(fields=api_model('response'), code=201)
     def delete(self):
-        user = User.query.filter_by(username=request.json.get('username')).first()
-        if not user or not user.check_password(request.json.get('password')):
+        serializer = serializers.LoginSchema(**request.json)
+        user = User.query.filter_by(username=serializer.get('username')).first()
+        if not user or not user.check_password(serializer.get('password')):
             raise Exception('Invalid user')
         db.session.delete(user)
         db.session.commit()
@@ -56,11 +59,12 @@ class RegisterUser(Resource):
 
 @api.route('/login/')
 class LoginUser(Resource):
-    @api.doc(body=api_model('login_schema'))
+    @api.doc(expect=[api_model('login_schema')])
     @api.marshal_with(fields=api_model('response'), code=200)
     @exception_handler
     def post(self):
-        user = auth.authenticate(request.json)
+        serializer = serializers.LoginSchema(**request.json)
+        user = auth.authenticate(serializer.model_dump())
         if not user:
             raise Unauthorized(description='Invalid Credentials')
         return {'message': 'Login successful', 'status': 200, 'data': {

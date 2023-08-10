@@ -7,6 +7,7 @@ from core.middlewares import verify_token
 from core.utils import exception_handler
 from notes.swagger_schema import get_model
 from notes import utils
+from notes import serializers
 
 app = create_app(settings.config_mode)
 
@@ -29,30 +30,34 @@ class NotesRest(Resource):
     @api.doc(body=api_model('note_schema'))
     @api.marshal_with(fields=api_model('response'), code=201)
     def post(self, *args, **kwargs):
+        serializer = serializers.NoteSchema(**request.json)
         note = Notes(**request.json)
         db.session.add(note)
         db.session.commit()
-        note = Notes.query.get(note.id)
-        return {'message': 'Note created', 'status': 201, 'data': note.to_dict()}, 201
+        note = serializer.model_validate(Notes.query.get(note.id)).model_dump()
+        return {'message': 'Note created', 'status': 201, 'data': note}, 201
 
     @api.marshal_with(fields=api_model('response'), code=201)
     def get(self, *args, **kwargs):
-        notes = list(map(lambda x: x.to_dict(), Notes.query.filter_by(user_id=kwargs.get('user_id'))))
-        collab_notes = list(map(lambda x: Notes.query.get(x.note_id).to_dict(),
+        notes = Notes.query.filter_by(user_id=kwargs.get('user_id')).all()
+        collab_notes = list(map(lambda x: Notes.query.get(x.note_id),
                                 Collaborator.query.filter_by(user_id=kwargs.get('user_id'))))
         notes.extend(collab_notes)
-        notes.sort(key=lambda x: x.get('id'))
+        notes.sort(key=lambda x: x.id)
+        notes = [serializers.NoteSchema.model_validate(x).model_dump() for x in notes]
         return {'message': 'Notes Retrieved', 'status': 200, 'data': notes}, 200
 
     @api.doc(body=api_model('note_update'))
     @api.marshal_with(fields=api_model('response'), code=201)
     def put(self, *args, **kwargs):
+        serializer = serializers.NoteSchema(**request.json)
         note = utils.check_note_accessibility(request.json.get('id'), request.json.get('user_id'))
         if not note:
             raise Exception('Access denied or note not found')
         [setattr(note, x, y) for x, y in request.json.items() if x != 'user_id']
         db.session.commit()
-        return {'message': 'Note updated', 'status': 200, 'data': note.to_dict()}, 200
+        data = serializer.model_validate(note).model_dump()
+        return {'message': 'Note updated', 'status': 200, 'data': data}, 200
 
     @api.doc(params={'note_id': {'description': 'Provide note id to delete the note', 'required': True}})
     @api.marshal_with(fields=api_model('response'), code=201)
